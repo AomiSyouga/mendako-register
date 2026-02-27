@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+/* base */
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; padding: 0; }
+body { color: #fff; overflow-x: hidden; }
+
+/* 背景（固定で敷く） */
+.deep-sea-bg{
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 700px at 50% 10%, rgba(120, 80, 180, 0.25), transparent 60%),
+    radial-gradient(900px 600px at 20% 80%, rgba(80, 160, 220, 0.18), transparent 60%),
+    linear-gradient(180deg, #07122c 0%, #08153a 40%, #050c22 100%);
+}
+
+/* 泡 */
+.bubble{
+  position: fixed;
+  bottom: -120px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  filter: blur(0.5px);
+  animation-name: bubbleUp;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  pointer-events: none;
+  z-index: -9;
+}
+@keyframes bubbleUp{
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  10%  { opacity: 0.5; }
+  50%  { transform: translateY(-55vh) translateX(15px); opacity: 0.4; }
+  90%  { opacity: 0.3; }
+  100% { transform: translateY(-120vh) translateX(-10px); opacity: 0; }
+}
+
+/* app wrapper */
+.app-wrapper{
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ガラス */
+.glass{
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(220,160,220,0.18);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 18px;
+}
+
+/* ===== 上タブ ===== */
+
+.tab-nav{
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 10px 12px 14px;
+  margin-bottom: 14px;
+}
+
+.tab-btn{
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.72);
+  padding: 10px 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  position: relative;
+  min-height: 54px;
+}
+
+.tab-icon{
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-btn:hover{
+  background: rgba(255,255,255,0.06);
+}
+
+.tab-btn.active{
+  color: rgba(255,255,255,0.95);
+}
+
+.tab-btn.active::after{
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -10px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(222,140,255,0.9);
+  box-shadow: 0 0 14px rgba(222,140,255,0.55);
+}
+
+/* ===== スクロールバー ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(220,160,220,0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(220,160,220,0.5);
+}
