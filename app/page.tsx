@@ -19,9 +19,13 @@ export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
-    setWallets(loadWallets());
-    setProducts(loadProducts());
-  }, []);
+  const init = async () => {
+    const [w, p] = await Promise.all([loadWallets(), loadProducts()]);
+    setWallets(w);
+    setProducts(p);
+  };
+  init();
+}, []);
 
   const tabs = useMemo(
     () => [

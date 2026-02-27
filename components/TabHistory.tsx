@@ -137,7 +137,10 @@ export function TabHistory({ wallets, products }: Props) {
     <div style={{ padding: "4px 0" }}>
       {allEvents.map(ev => {
         const isOpen = openEventId === ev.id;
-        const total = ev.sales.reduce((a, s) => a + s.amount, 0);
+        const total = (ev.sales ?? []).reduce(
+  (a, s) => a + (s?.amount ?? 0),
+  0
+);
 
         return (
           <div key={ev.id} style={cardStyle}>
