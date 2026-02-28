@@ -4,6 +4,17 @@ import { useState } from "react";
 import { Product, ProductTag, Wallet } from "@/lib/types";
 import { saveProducts } from "@/lib/storage";
 
+const TAGS_KEY = "mendako_v0_tags";
+const DEFAULT_TAGS = ["ポーチ", "かばん", "アート", "家具", "ボックス", "アクリルキーホルダー", "メガネケース", "カードケース", "財布"];
+
+function loadTags(): string[] {
+  if (typeof window === "undefined") return DEFAULT_TAGS;
+  try {
+    const raw = localStorage.getItem(TAGS_KEY);
+    return raw ? JSON.parse(raw) : DEFAULT_TAGS;
+  } catch { return DEFAULT_TAGS; }
+}
+
 type Props = {
   products: Product[];
   setProducts: (products: Product[]) => void;
@@ -14,9 +25,8 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-const ALL_TAGS: ProductTag[] = ["ポーチ", "かばん", "アート", "家具", "ボックス", "アクリルキーホルダー", "メガネケース","カードケース","財布"];
-
 export function TabProducts({ products, setProducts, wallets }: Props) {
+  const [allTags] = useState<string[]>(loadTags);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", price: "", walletId: "", imageDataUrl: "", tags: [] as ProductTag[] });
 
@@ -189,10 +199,10 @@ export function TabProducts({ products, setProducts, wallets }: Props) {
             <div style={{ marginBottom: 20 }}>
               <label style={labelStyle}>商品タグ（3つまで）</label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {ALL_TAGS.map(tag => {
-                  const selected = form.tags.includes(tag);
+                {allTags.map(tag => {
+                  const selected = form.tags.includes(tag as ProductTag);
                   return (
-                    <button key={tag} onClick={() => toggleTag(tag)} style={{
+                    <button key={tag} onClick={() => toggleTag(tag as ProductTag)} style={{
                       padding: "8px 14px", borderRadius: 20, fontSize: 14,
                       background: selected ? "rgba(220,100,220,0.4)" : "rgba(255,255,255,0.06)",
                       border: selected ? "1px solid rgba(220,120,220,0.6)" : "1px solid rgba(220,160,220,0.2)",
