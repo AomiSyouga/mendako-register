@@ -73,7 +73,6 @@ export async function pullFromSupabase(userId: string): Promise<void> {
     }
 
     await idbSaveProducts(merged);
-    await idbSaveProducts(merged);
     // マージ結果をクラウドに保存し直す
     await upsertTable("products", userId, merged);
   }

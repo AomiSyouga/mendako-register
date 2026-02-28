@@ -211,6 +211,21 @@ export function TabSettings({ wallets, setWallets }: Props) {
           color: "white", cursor: "pointer", fontFamily: "inherit",
         }}>変更する</button>
       </div>
+      {/* ログアウト */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "#f0c0f0", marginBottom: 6 }}>🚪 ログアウト</div>
+        <div style={{ fontSize: 14, color: "rgba(200,160,200,0.7)", marginBottom: 18 }}>Googleアカウントからログアウトします</div>
+        <button onClick={async () => {
+          const { supabase } = await import("@/lib/supabaseClient");
+          await supabase.auth.signOut();
+          window.location.reload();
+        }} style={{
+          width: "100%", padding: "14px", borderRadius: 12, fontSize: 16, fontWeight: 700,
+          background: "rgba(255,80,80,0.2)",
+          border: "1px solid rgba(255,100,100,0.3)",
+          color: "#ff9090", cursor: "pointer", fontFamily: "inherit",
+        }}>ログアウト</button>
+      </div>
     </div>
   );
 }
