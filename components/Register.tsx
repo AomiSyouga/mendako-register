@@ -711,12 +711,11 @@ const [allTags] = useState<string[]>(loadTags);
                   setManualAmount("");
                   setPayment("cash");
 
-                  setState((prev) => ({
-                    ...prev,
-                    eventDate: prev.eventDate || new Date().toISOString().slice(0, 10),
-                    startAt: Date.now(),
-                    endAt: null,
-                  }));
+                  setState((prev) => archiveCurrentEvent(prev));
+
+setTimeout(async () => {
+  await pushSync();
+}, 0);
 
                   // もしどこかで endAt を localStorage に持ってた名残があるなら、消しとく
                   try {
@@ -740,58 +739,40 @@ const [allTags] = useState<string[]>(loadTags);
             )}
 
             <button
-              type="button"
-              onClick={async () => {
-                // 先にスナップショット作成→モーダル表示
-                setSettleSnapshot(totals);
-                setShowSettle(true);
+  type="button"
+  onClick={() => {
+    // 先にスナップショット作成→モーダル表示
+    setSettleSnapshot(totals);
+    setShowSettle(true);
 
-                // イベントをアーカイブ（履歴に残すやつ）
-                setState((prev) => {
-  // まず履歴に退避
-  const archived = archiveCurrentEvent(prev);
+    // イベントをアーカイブ（履歴に残す）＋ 現イベントをリセット
+    setState((prev) => archiveCurrentEvent(prev));
 
-  // そのうえで「今のイベント（レジ画面側）」をリセット
-  return {
-    ...archived,
+    // レジ側の入力リセット（履歴は消さない）
+    setCart([]);
+    setOverrideWalletId(null);
+    setCashReceived("");
+    setManualAmount("");
+    setPayment("cash");
 
-    // 記録中判定を終わらせる
-    endAt: Date.now(),
-    startAt: null,
-
-    // サマリー／履歴／差し入れバッジが残る原因を消す
-    sales: [],
-    gifts: [],
-
-    // 次のイベント用に空にする（ここは好みでOK）
-    eventName: "",
-    eventDate: new Date().toISOString().slice(0, 10),
-  };
-});
-
-                // レジ側の入力リセット（履歴は消さない）
-                setCart([]);
-                setOverrideWalletId(null);
-                setCashReceived("");
-                setManualAmount("");
-                setPayment("cash");
-
-                // ログイン済みならSupabaseにpush、未ログインは何もしない想定
-                await pushSync();
-              }}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 10,
-                fontSize: 13,
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(220,160,220,0.3)",
-                color: "white",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              しめる
-            </button>
+    // ★ setState直後は保存が追いつかないことがあるので、次tickでpush
+    setTimeout(() => {
+      pushSync().catch(() => {});
+    }, 0);
+  }}
+  style={{
+    padding: "8px 12px",
+    borderRadius: 10,
+    fontSize: 13,
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(220,160,220,0.3)",
+    color: "white",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  }}
+>
+  しめる
+</button>
           </div>
         </div>
 
