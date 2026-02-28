@@ -173,10 +173,21 @@ const [allTags] = useState<string[]>(loadTags);
         ...baseCommon,
       }));
 
-      setState((s) => ({
-        ...s,
-        sales: [...newSales, ...(s.sales ?? [])],
-      }));
+      setState((s) => {
+  const prevLen = (s.sales ?? []).length;
+  const nextSales = [...newSales, ...(s.sales ?? [])];
+
+  console.log("✅ addSale(cart) commit", {
+    prevLen,
+    add: newSales.length,
+    nextLen: nextSales.length,
+  });
+
+  return {
+    ...s,
+    sales: nextSales,
+  };
+});
 
       setCart([]);
       setOverrideWalletId(null);
