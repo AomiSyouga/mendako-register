@@ -158,7 +158,6 @@ const [allTags] = useState<string[]>(loadTags);
 
   function addSale() {
     if (!finalAmount || finalAmount <= 0) return;
-    if (payment === "cash" && (computedChange === null || computedChange < 0)) return;
 
     const received = toNumberSafe(cashReceived);
     const baseCommon = payment === "cash" && received ? { cashReceived: received } : {};
@@ -1173,7 +1172,7 @@ const [allTags] = useState<string[]>(loadTags);
 
             <button
               onClick={addSale}
-              disabled={!finalAmount || (payment === "cash" && (computedChange === null || computedChange < 0))}
+              disabled={!finalAmount}
               style={{
                 width: "100%",
                 padding: "14px",
@@ -1185,7 +1184,7 @@ const [allTags] = useState<string[]>(loadTags);
                 color: "white",
                 cursor: "pointer",
                 fontFamily: "inherit",
-                opacity: !finalAmount || (payment === "cash" && (computedChange === null || computedChange < 0)) ? 0.3 : 1,
+                opacity: !finalAmount ? 0.3 : 1,
                 boxShadow: "0 4px 20px rgba(160,40,160,0.35)",
               }}
             >
