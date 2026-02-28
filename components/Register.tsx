@@ -747,7 +747,27 @@ const [allTags] = useState<string[]>(loadTags);
                 setShowSettle(true);
 
                 // イベントをアーカイブ（履歴に残すやつ）
-                setState((prev) => archiveCurrentEvent(prev));
+                setState((prev) => {
+  // まず履歴に退避
+  const archived = archiveCurrentEvent(prev);
+
+  // そのうえで「今のイベント（レジ画面側）」をリセット
+  return {
+    ...archived,
+
+    // 記録中判定を終わらせる
+    endAt: Date.now(),
+    startAt: null,
+
+    // サマリー／履歴／差し入れバッジが残る原因を消す
+    sales: [],
+    gifts: [],
+
+    // 次のイベント用に空にする（ここは好みでOK）
+    eventName: "",
+    eventDate: new Date().toISOString().slice(0, 10),
+  };
+});
 
                 // レジ側の入力リセット（履歴は消さない）
                 setCart([]);
