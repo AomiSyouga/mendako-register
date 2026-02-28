@@ -18,21 +18,19 @@ function toNumberSafe(v: string): number {
 
 type Props = { wallets: Wallet[]; products: Product[] };
 
-const ALL_TAGS: ProductTag[] = [
-  "ポーチ",
-  "かばん",
-  "アート",
-  "家具",
-  "ボックス",
-  "アクリルキーホルダー",
-  "メガネケース",
-  "カードケース",
-  "財布",
-];
+const TAGS_KEY = "mendako_v0_tags";
+const DEFAULT_TAGS = ["ポーチ", "かばん", "アート", "家具", "ボックス", "アクリルキーホルダー", "メガネケース", "カードケース", "財布"];
+function loadTags(): string[] {
+  if (typeof window === "undefined") return DEFAULT_TAGS;
+  try {
+    const raw = localStorage.getItem(TAGS_KEY);
+    return raw ? JSON.parse(raw) : DEFAULT_TAGS;
+  } catch { return DEFAULT_TAGS; }
+}
 
 export function Register({ wallets, products }: Props) {
   const { state, setState, ready, pushSync } = useLocalStore();
-
+const [allTags] = useState<string[]>(loadTags);
   const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [walletId, setWalletId] = useState<string>(wallets[0]?.id ?? "");
   const [cashReceived, setCashReceived] = useState<string>("");
@@ -986,7 +984,7 @@ export function Register({ wallets, products }: Props) {
             </div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {(["all", ...ALL_TAGS] as (ProductTag | "all")[]).map((tag) => (
+              {(["all", ...allTags] as (ProductTag | "all")[]).map((tag) => (
                 <button
                   key={tag}
                   onClick={() => setFilterTag(tag)}
