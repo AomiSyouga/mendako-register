@@ -16,7 +16,7 @@ export function TabHistory({ wallets, products }: Props) {
   const archivedEvents: ArchivedEvent[] = state.archivedEvents ?? [];
 
   // 現在進行中イベント（sales がある場合だけ表示）
-  const currentEvent: ArchivedEvent | null = state.sales.length > 0 ? {
+  const currentEvent: ArchivedEvent | null = state.sales.length > 0 && state.startAt && !state.endAt ? {
     id: "__current__",
     eventName: state.eventName || "（進行中）",
     eventDate: state.eventDate || "",
