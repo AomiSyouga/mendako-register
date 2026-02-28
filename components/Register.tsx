@@ -230,32 +230,31 @@ export function Register({ wallets, products }: Props) {
     setState((s) => ({ ...s, gifts: (s.gifts ?? []).filter((g) => g.id !== id) }));
   }
 
-  // ===== しめる =====
-  function handleClose() {
-    // 1. 今の集計を先にスナップショットとして保存（モーダル表示用）
-    setSettleSnapshot(totals);
-    setShowSettle(true);
+// ===== しめる =====
+async function handleClose() {
+  // 1. スナップショット
+  setSettleSnapshot(totals);
+  setShowSettle(true);
 
-    // 2. リセット済みstateを先に計算（Reactのstate更新を待たずに使える）
-    const nextState = archiveCurrentEvent(state);
+  // 2. リセット済みstateを計算
+  const nextState = archiveCurrentEvent(state);
 
-    // 3. Reactのstateを更新
-    setState(nextState);
+  // 3. IDBに確実に保存（awaitで完了を待つ）
+  await idbSaveState(nextState).catch(() => {});
 
-    // 4. レジ側のUIリセット
-    setCart([]);
-    setOverrideWalletId(null);
-    setCashReceived("");
-    setManualAmount("");
-    setPayment("cash");
+  // 4. Reactのstateを更新（IDB保存後）
+  setState(nextState);
 
-    // 5. nextStateを直接IDBに保存してからSupabaseへpush
-    //    （ReactのstateがIDBに反映されるより先に確実に保存する）
-    setTimeout(async () => {
-      await idbSaveState(nextState).catch(() => {});
-      await pushSync().catch(() => {});
-    }, 100);
-  }
+  // 5. UIリセット
+  setCart([]);
+  setOverrideWalletId(null);
+  setCashReceived("");
+  setManualAmount("");
+  setPayment("cash");
+
+  // 6. IDB保存済みなのでそのままpush
+  await pushSync().catch(() => {});
+}
 
   // ===== はじめる =====
   function handleOpen() {
