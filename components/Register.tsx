@@ -688,63 +688,55 @@ const [allTags] = useState<string[]>(loadTags);
             </button>
 
             {state.startAt && !state.endAt ? (
-              <div
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#ff80c0",
-                  border: "1px solid rgba(255,100,180,0.5)",
-                  background: "rgba(255,80,160,0.15)",
-                }}
-              >
-                🔴 記録中
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-  setCart([]);
-  setOverrideWalletId(null);
-  setCashReceived("");
-  setManualAmount("");
-  setPayment("cash");
+  <div
+    style={{
+      padding: "8px 12px",
+      borderRadius: 10,
+      fontSize: 13,
+      fontWeight: 700,
+      color: "#ff80c0",
+      border: "1px solid rgba(255,100,180,0.5)",
+      background: "rgba(255,80,160,0.15)",
+    }}
+  >
+    🔴 記録中
+  </div>
+) : (
+  <button
+    type="button"
+    onClick={() => {
+      setCart([]);
+      setOverrideWalletId(null);
+      setCashReceived("");
+      setManualAmount("");
+      setPayment("cash");
 
-  setState((prev) => ({
-    ...prev,
-    startAt: Date.now(),
-    endAt: null,
-    eventDate: prev.eventDate || new Date().toISOString().slice(0, 10),
-  }));
+      setState((prev) => ({
+        ...prev,
+        startAt: Date.now(),
+        endAt: null,
+        eventDate: prev.eventDate || new Date().toISOString().slice(0, 10),
+      }));
 
-  try {
-    localStorage.removeItem("mendako_endAt");
-  } catch {}
-}}
-
-
-
-                  // もしどこかで endAt を localStorage に持ってた名残があるなら、消しとく
-                  try {
-                    localStorage.removeItem("mendako_endAt");
-                  } catch {}
-                }}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  background: "rgba(220,100,220,0.35)",
-                  border: "1px solid rgba(220,120,220,0.5)",
-                  color: "white",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                はじめる
-              </button>
-            )}
+      try {
+        localStorage.removeItem("mendako_endAt");
+      } catch {}
+    }}
+    style={{
+      padding: "8px 12px",
+      borderRadius: 10,
+      fontSize: 13,
+      fontWeight: 700,
+      background: "rgba(220,100,220,0.35)",
+      border: "1px solid rgba(220,120,220,0.5)",
+      color: "white",
+      cursor: "pointer",
+      fontFamily: "inherit",
+    }}
+  >
+    はじめる
+  </button>
+)}
 
             <button
   type="button"
