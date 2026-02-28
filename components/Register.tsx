@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect, type ChangeEvent, type CSSProperties } fr
 import { useLocalStore } from "@/lib/useLocalStore";
 import type { PaymentMethod, Sale, Wallet, Product, ProductTag, Gift } from "@/lib/types";
 import { archiveCurrentEvent } from "@/lib/storage";
+import { idbSaveState } from "@/lib/db";
 
 function yen(n: number) {
   return Math.round(n).toLocaleString("ja-JP");
@@ -235,33 +236,25 @@ export function Register({ wallets, products }: Props) {
     setSettleSnapshot(totals);
     setShowSettle(true);
 
-    // 2. stateを「アーカイブ済み＋完全リセット」に更新
-    //    archiveCurrentEvent が archivedEvents に退避して、
-    //    sales/gifts/startAt/endAt をリセットしてくれる前提
-    setState((prev) => {
-      const archived = archiveCurrentEvent(prev);
-      // 念のため確実にリセット（archiveCurrentEvent の実装に関わらず保険）
-      return {
-        ...archived,
-        startAt: null,
-        endAt: null,
-        sales: [],
-        gifts: [],
-      };
-    });
+    // 2. リセット済みstateを先に計算（Reactのstate更新を待たずに使える）
+    const nextState = archiveCurrentEvent(state);
 
-    // 3. レジ側のUIリセット
+    // 3. Reactのstateを更新
+    setState(nextState);
+
+    // 4. レジ側のUIリセット
     setCart([]);
     setOverrideWalletId(null);
     setCashReceived("");
     setManualAmount("");
     setPayment("cash");
 
-    // 4. pushSync は useLocalStore の useEffect 経由で自動的に走るので
-    //    手動呼び出しは不要。ただし確実に送りたいなら少し待ってから呼ぶ
-    setTimeout(() => {
-      pushSync().catch(() => {});
-    }, 300);
+    // 5. nextStateを直接IDBに保存してからSupabaseへpush
+    //    （ReactのstateがIDBに反映されるより先に確実に保存する）
+    setTimeout(async () => {
+      await idbSaveState(nextState).catch(() => {});
+      await pushSync().catch(() => {});
+    }, 100);
   }
 
   // ===== はじめる =====
