@@ -220,11 +220,18 @@ if (userIdRef.current) {
 
   // ===== Register.tsx と同じ setState の使い方 =====
   const setState = useCallback(
-    (updater: EventState | ((prev: EventState) => EventState)) => {
-      setState_((prev) => (typeof updater === "function" ? updater(prev) : updater));
-    },
-    []
-  );
+  (updater: EventState | ((prev: EventState) => EventState)) => {
+    setState_((prev) => {
+      const next = typeof updater === "function" ? (updater as any)(prev) : updater;
+
+      // ★ここでIDBへ確定保存（stateが確実にnext）
+      idbSaveState(next).catch(() => {});
+
+      return next;
+    });
+  },
+  []
+);
 
   const setWallets = useCallback(
     (updater: Wallet[] | ((prev: Wallet[]) => Wallet[])) => {
