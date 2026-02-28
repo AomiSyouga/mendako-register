@@ -705,17 +705,25 @@ const [allTags] = useState<string[]>(loadTags);
               <button
                 type="button"
                 onClick={() => {
-                  setCart([]);
-                  setOverrideWalletId(null);
-                  setCashReceived("");
-                  setManualAmount("");
-                  setPayment("cash");
+  setCart([]);
+  setOverrideWalletId(null);
+  setCashReceived("");
+  setManualAmount("");
+  setPayment("cash");
 
-                  setState((prev) => archiveCurrentEvent(prev));
+  setState((prev) => ({
+    ...prev,
+    startAt: Date.now(),
+    endAt: null,
+    eventDate: prev.eventDate || new Date().toISOString().slice(0, 10),
+  }));
 
-setTimeout(async () => {
-  await pushSync();
-}, 0);
+  try {
+    localStorage.removeItem("mendako_endAt");
+  } catch {}
+}}
+
+
 
                   // もしどこかで endAt を localStorage に持ってた名残があるなら、消しとく
                   try {
