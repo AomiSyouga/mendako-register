@@ -227,8 +227,10 @@ const setState = useCallback(
           ? (updater as (p: EventState) => EventState)(prev)
           : updater;
 
-      // ★「しめる」直後にpushSyncが走っても必ず最新がIDBに入るように即保存
-      idbSaveState(next).catch(() => {});
+          useEffect(() => {
+  if (!ready) return;
+  idbSaveState(state).catch(() => {});
+}, [ready, state]);
 
       return next;
     });
