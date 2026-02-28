@@ -54,7 +54,39 @@ export function useLocalStore() {
     try {
       // いったん “今の実装” を壊さないために uid だけ渡す
       // （pushToSupabase 側が IndexedDB から読む設計でもOK）
-      await pushToSupabase(uid);
+      const autoSync = useCallback(async () => {
+  const uid = userIdRef.current;
+  if (!uid) return;
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+  if (syncingRef.current) {
+    pendingRef.current = true;
+    return;
+  }
+
+  syncingRef.current = true;
+  pendingRef.current = false;
+
+  try {
+    // ★先にIndexedDBへ確定保存（pushToSupabaseがIDB読む前提だから）
+    await Promise.all([
+      idbSaveState(state),
+      idbSaveWallets(wallets),
+      idbSaveProducts(products),
+    ]).catch(() => {});
+
+    await pushToSupabase(uid);
+  } catch {
+    pendingRef.current = true;
+  } finally {
+    syncingRef.current = false;
+
+    if (pendingRef.current) {
+      pendingRef.current = false;
+      await autoSync();
+    }
+  }
+}, [state, wallets, products]);
     } catch {
       // 一時的に失敗したら次回また送る
       pendingRef.current = true;
@@ -210,10 +242,18 @@ if (userIdRef.current) {
 
   // 「しめる」時の手動push（ログイン中だけ）
   const pushSync = useCallback(async () => {
-    const uid = userIdRef.current;
-    if (!uid) return;
-    await pushToSupabase(uid);
-  }, []);
+  const uid = userIdRef.current;
+  if (!uid) return;
+
+  // ★先にIDBへ確定保存
+  await Promise.all([
+    idbSaveState(state),
+    idbSaveWallets(wallets),
+    idbSaveProducts(products),
+  ]).catch(() => {});
+
+  await pushToSupabase(uid);
+}, [state, wallets, products]);
 
   return {
     ready,
