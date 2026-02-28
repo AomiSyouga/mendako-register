@@ -114,25 +114,58 @@ export function useLocalStore() {
   }, []);
 
   // ===== 認証状態の監視 =====
+  // 「前回ログインしていたか」を追跡するref
+  const wasLoggedInRef = useRef(false);
+
   useEffect(() => {
+    // 初回セッション確認
     supabase.auth.getSession().then(({ data }) => {
-      userIdRef.current = data.session?.user?.id ?? null;
+      const uid = data.session?.user?.id ?? null;
+      userIdRef.current = uid;
+
+      if (uid) {
+        // 初回マウント時：IDBにデータがない場合のみpull
+        idbLoadState().then((s) => {
+          const hasLocalData = s && (s.startAt || (s.sales ?? []).length > 0 || (s.archivedEvents ?? []).length > 0);
+          if (!hasLocalData) {
+            // ローカルにデータがないときだけクラウドから取得
+            pullFromSupabase(uid)
+              .then(() => {
+                idbLoadState().then((s2) => s2 && setState_({ ...DEFAULT_STATE, ...s2 }));
+                idbLoadWallets().then((w) => w && setWallets_(w));
+                idbLoadProducts().then((p) => p && setProducts_(p));
+              })
+              .catch(() => {});
+          } else {
+            // ローカルにデータがある場合はproductsとwalletsだけpull（商品・財布は上書きOK）
+            pullFromSupabase(uid).catch(() => {});
+          }
+        }).catch(() => {});
+
+        wasLoggedInRef.current = true;
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_, session) => {
-      userIdRef.current = session?.user?.id ?? null;
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const uid = session?.user?.id ?? null;
+      userIdRef.current = uid;
 
-      // ログインした瞬間にクラウドから引っ張る
-      if (userIdRef.current) {
-        pullFromSupabase(userIdRef.current)
+      // ログアウト→ログインの時だけpull（SIGNED_INイベント、かつ前回未ログイン状態）
+      if (event === "SIGNED_IN" && uid && !wasLoggedInRef.current) {
+        pullFromSupabase(uid)
           .then(() => {
             idbLoadState().then((s) => s && setState_({ ...DEFAULT_STATE, ...s }));
             idbLoadWallets().then((w) => w && setWallets_(w));
             idbLoadProducts().then((p) => p && setProducts_(p));
           })
           .catch(() => {});
+        wasLoggedInRef.current = true;
+      }
+
+      if (event === "SIGNED_OUT") {
+        wasLoggedInRef.current = false;
       }
     });
 
