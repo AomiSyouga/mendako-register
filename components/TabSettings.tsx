@@ -28,21 +28,12 @@ type Props = {
 };
 
 export function TabSettings({ wallets, setWallets }: Props) {
-  const [newPw, setNewPw] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [tags, setTags] = useState<string[]>(loadTags);
   const [newTag, setNewTag] = useState("");
   const [editingTagIdx, setEditingTagIdx] = useState<number | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
-
-  function changePw() {
-    if (!newPw.trim()) { alert("パスワードを入力してください"); return; }
-    localStorage.setItem("mendako_pw", newPw);
-    localStorage.removeItem("mendako_unlocked");
-    alert("パスワードを変更しました。再ログインしてください。");
-    window.location.reload();
-  }
 
   function startEdit(w: Wallet) { setEditingId(w.id); setEditingName(w.name); }
   function saveEdit() {
@@ -132,7 +123,6 @@ export function TabSettings({ wallets, setWallets }: Props) {
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {wallets.map((w, idx) => (
             <li key={w.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              {/* 並び替えボタン */}
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <button style={{ ...btnMove, opacity: idx === 0 ? 0.2 : 1 }} onClick={() => moveWallet(idx, -1)} disabled={idx === 0}>▲</button>
                 <button style={{ ...btnMove, opacity: idx === wallets.length - 1 ? 0.2 : 1 }} onClick={() => moveWallet(idx, 1)} disabled={idx === wallets.length - 1}>▼</button>
@@ -193,24 +183,6 @@ export function TabSettings({ wallets, setWallets }: Props) {
         </div>
       </div>
 
-      {/* パスワード変更 */}
-      <div style={cardStyle}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "#f0c0f0", marginBottom: 6 }}>🔐 パスワード変更</div>
-        <div style={{ fontSize: 14, color: "rgba(200,160,200,0.7)", marginBottom: 18 }}>変更後は再ログインが必要です</div>
-        <input
-          type="password"
-          value={newPw}
-          onChange={(e) => setNewPw(e.target.value)}
-          placeholder="新しいパスワード"
-          style={{ ...inputStyle, width: "100%", marginBottom: 12, display: "block" }}
-        />
-        <button onClick={changePw} style={{
-          width: "100%", padding: "14px", borderRadius: 12, fontSize: 16, fontWeight: 700,
-          background: "linear-gradient(135deg, rgba(180,60,180,0.6), rgba(100,60,180,0.6))",
-          border: "1px solid rgba(220,120,220,0.4)",
-          color: "white", cursor: "pointer", fontFamily: "inherit",
-        }}>変更する</button>
-      </div>
       {/* ログアウト */}
       <div style={cardStyle}>
         <div style={{ fontSize: 17, fontWeight: 700, color: "#f0c0f0", marginBottom: 6 }}>🚪 ログアウト</div>
