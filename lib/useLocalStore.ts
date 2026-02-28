@@ -219,12 +219,15 @@ if (userIdRef.current) {
   }, [autoSync]);
 
   // ===== Register.tsx と同じ setState の使い方 =====
-  const setState = useCallback(
+const setState = useCallback(
   (updater: EventState | ((prev: EventState) => EventState)) => {
     setState_((prev) => {
-      const next = typeof updater === "function" ? (updater as any)(prev) : updater;
+      const next =
+        typeof updater === "function"
+          ? (updater as (p: EventState) => EventState)(prev)
+          : updater;
 
-      // ★ここでIDBへ確定保存（stateが確実にnext）
+      // ★「しめる」直後にpushSyncが走っても必ず最新がIDBに入るように即保存
       idbSaveState(next).catch(() => {});
 
       return next;
