@@ -21,7 +21,7 @@ async function upsertTable(
 }
 
 /* =========================
-   IndexedDB → Supabase（手動バックアップ用）
+   IndexedDB → Supabase
    「しめる」ボタンから呼ぶ
 ========================= */
 
@@ -56,6 +56,25 @@ export async function pullFromSupabase(userId: string): Promise<void> {
     await idbSaveWallets(walletsRes.data.data as Wallet[]);
   }
   if (productsRes.data) {
-    await idbSaveProducts(productsRes.data.data as Product[]);
+    const cloudProducts = productsRes.data.data as Product[];
+    const localProducts = (await idbLoadProducts()) ?? [];
+
+    const merged = [...cloudProducts];
+    for (const localItem of localProducts) {
+      const isDuplicate = cloudProducts.some(
+        (c) =>
+          c.name === localItem.name &&
+          c.price === localItem.price &&
+          JSON.stringify(c.tags ?? []) === JSON.stringify(localItem.tags ?? [])
+      );
+      if (!isDuplicate) {
+        merged.push(localItem);
+      }
+    }
+
+    await idbSaveProducts(merged);
+    await idbSaveProducts(merged);
+    // マージ結果をクラウドに保存し直す
+    await upsertTable("products", userId, merged);
   }
 }
