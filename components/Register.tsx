@@ -30,7 +30,7 @@ function loadTags(): string[] {
 
 export function Register({ wallets, products }: Props) {
   const { state, setState, ready, pushSync } = useLocalStore();
-const [allTags] = useState<string[]>(loadTags);
+  const [allTags] = useState<string[]>(loadTags);
   const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [walletId, setWalletId] = useState<string>(wallets[0]?.id ?? "");
   const [cashReceived, setCashReceived] = useState<string>("");
@@ -53,9 +53,7 @@ const [allTags] = useState<string[]>(loadTags);
   const [showGift, setShowGift] = useState(false);
   const [giftForm, setGiftForm] = useState({ fromName: "", content: "", imageDataUrl: "" });
 
-  // windowWidth は今は使ってないので、必要なら復活でOK（未使用警告が出るだけ）
   useEffect(() => {
-    // 初期ウォレットが空なら wallets 反映
     if (!walletId && wallets[0]?.id) setWalletId(wallets[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallets?.length]);
@@ -72,7 +70,6 @@ const [allTags] = useState<string[]>(loadTags);
     return Math.round(received - finalAmount);
   }, [payment, cashReceived, finalAmount]);
 
-  // カート内のウォレット別内訳（表示用）
   const cartByWallet = useMemo(() => {
     const byWallet: Record<string, number> = {};
     for (const c of cart) {
@@ -82,19 +79,14 @@ const [allTags] = useState<string[]>(loadTags);
     return byWallet;
   }, [cart]);
 
-  // 自動ウォレット（最大額のウォレット。 同額なら wallets の上にいる方が勝つ）
   const autoWalletId = useMemo(() => {
     if (cart.length === 0) return walletId;
-
     const byWallet: Record<string, number> = {};
     for (const c of cart) {
       byWallet[c.product.walletId] = (byWallet[c.product.walletId] ?? 0) + c.product.price * c.qty;
     }
-
-    // 同額なら wallets の順で先勝ち
     let bestId = walletId;
     let bestAmount = -1;
-
     for (const w of wallets) {
       const amt = byWallet[w.id] ?? 0;
       if (amt > bestAmount) {
@@ -109,31 +101,27 @@ const [allTags] = useState<string[]>(loadTags);
   const activeWalletId = cart.length > 0 ? (overrideWalletId ?? autoWalletId) : walletId;
 
   const totals = useMemo(() => {
-  const sales = state?.sales ?? [];
-  const gifts = state?.gifts ?? [];
+    const sales = state?.sales ?? [];
 
-  const total = sales.reduce((a, s) => a + (s?.amount ?? 0), 0);
+    const total = sales.reduce((a, s) => a + (s?.amount ?? 0), 0);
+    const cashTotal = sales
+      .filter((s) => s?.payment === "cash")
+      .reduce((a, s) => a + (s?.amount ?? 0), 0);
+    const cashlessTotal = total - cashTotal;
 
-  const cashTotal = sales
-    .filter((s) => s?.payment === "cash")
-    .reduce((a, s) => a + (s?.amount ?? 0), 0);
+    const byWallet: Record<string, { total: number; cash: number }> = {};
+    for (const w of wallets ?? []) byWallet[w.id] = { total: 0, cash: 0 };
 
-  const cashlessTotal = total - cashTotal;
+    for (const s of sales) {
+      const wid = s?.walletId;
+      if (!wid) continue;
+      if (!byWallet[wid]) byWallet[wid] = { total: 0, cash: 0 };
+      byWallet[wid].total += s.amount ?? 0;
+      if (s.payment === "cash") byWallet[wid].cash += s.amount ?? 0;
+    }
 
-  const byWallet: Record<string, { total: number; cash: number }> = {};
-  for (const w of wallets ?? []) byWallet[w.id] = { total: 0, cash: 0 };
-
-  for (const s of sales) {
-    const wid = s?.walletId;
-    if (!wid) continue;
-    if (!byWallet[wid]) byWallet[wid] = { total: 0, cash: 0 };
-
-    byWallet[wid].total += s.amount ?? 0;
-    if (s.payment === "cash") byWallet[wid].cash += s.amount ?? 0;
-  }
-
-  return { total, cashTotal, cashlessTotal, byWallet, gifts };
-}, [state, wallets]);
+    return { total, cashTotal, cashlessTotal, byWallet };
+  }, [state, wallets]);
 
   // ===== 操作系 =====
   function addToCart(p: Product) {
@@ -147,7 +135,6 @@ const [allTags] = useState<string[]>(loadTags);
       }
       return [...prev, { product: p, qty: 1 }];
     });
-    // 自動判定に戻す（手動選択はカート変更で解除したい場合）
     setOverrideWalletId(null);
   }
 
@@ -158,7 +145,6 @@ const [allTags] = useState<string[]>(loadTags);
 
   function addSale() {
     if (!finalAmount || finalAmount <= 0) return;
-
     const received = toNumberSafe(cashReceived);
     const baseCommon = payment === "cash" && received ? { cashReceived: received } : {};
 
@@ -172,12 +158,7 @@ const [allTags] = useState<string[]>(loadTags);
         productId: c.product.id,
         ...baseCommon,
       }));
-
-      setState((s) => ({
-  ...s,
-  sales: [...newSales, ...(s.sales ?? [])],
-}));
-
+      setState((s) => ({ ...s, sales: [...newSales, ...(s.sales ?? [])] }));
       setCart([]);
       setOverrideWalletId(null);
     } else {
@@ -189,12 +170,7 @@ const [allTags] = useState<string[]>(loadTags);
         walletId: activeWalletId,
         ...baseCommon,
       };
-
-      setState((s) => ({
-        ...s,
-        sales: [sale, ...(s.sales ?? [])],
-      }));
-
+      setState((s) => ({ ...s, sales: [sale, ...(s.sales ?? [])] }));
       setManualAmount("");
     }
 
@@ -212,10 +188,8 @@ const [allTags] = useState<string[]>(loadTags);
   function handleGiftImage(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const img = new Image();
     const url = URL.createObjectURL(file);
-
     img.onload = () => {
       const MAX = 400;
       const scale = Math.min(1, MAX / Math.max(img.width, img.height));
@@ -226,13 +200,11 @@ const [allTags] = useState<string[]>(loadTags);
       setGiftForm((f) => ({ ...f, imageDataUrl: canvas.toDataURL("image/jpeg", 0.6) }));
       URL.revokeObjectURL(url);
     };
-
     img.src = url;
   }
 
   function addGift() {
     if (!giftForm.fromName && !giftForm.content) return;
-
     const gift: Gift = {
       id: uid(),
       at: Date.now(),
@@ -241,7 +213,6 @@ const [allTags] = useState<string[]>(loadTags);
       imageDataUrl: giftForm.imageDataUrl || undefined,
       thanked: false,
     };
-
     setState((s) => ({ ...s, gifts: [gift, ...(s.gifts ?? [])] }));
     setGiftForm({ fromName: "", content: "", imageDataUrl: "" });
     setShowGift(false);
@@ -256,6 +227,57 @@ const [allTags] = useState<string[]>(loadTags);
 
   function removeGift(id: string) {
     setState((s) => ({ ...s, gifts: (s.gifts ?? []).filter((g) => g.id !== id) }));
+  }
+
+  // ===== しめる =====
+  function handleClose() {
+    // 1. 今の集計を先にスナップショットとして保存（モーダル表示用）
+    setSettleSnapshot(totals);
+    setShowSettle(true);
+
+    // 2. stateを「アーカイブ済み＋完全リセット」に更新
+    //    archiveCurrentEvent が archivedEvents に退避して、
+    //    sales/gifts/startAt/endAt をリセットしてくれる前提
+    setState((prev) => {
+      const archived = archiveCurrentEvent(prev);
+      // 念のため確実にリセット（archiveCurrentEvent の実装に関わらず保険）
+      return {
+        ...archived,
+        startAt: null,
+        endAt: null,
+        sales: [],
+        gifts: [],
+      };
+    });
+
+    // 3. レジ側のUIリセット
+    setCart([]);
+    setOverrideWalletId(null);
+    setCashReceived("");
+    setManualAmount("");
+    setPayment("cash");
+
+    // 4. pushSync は useLocalStore の useEffect 経由で自動的に走るので
+    //    手動呼び出しは不要。ただし確実に送りたいなら少し待ってから呼ぶ
+    setTimeout(() => {
+      pushSync().catch(() => {});
+    }, 300);
+  }
+
+  // ===== はじめる =====
+  function handleOpen() {
+    setCart([]);
+    setOverrideWalletId(null);
+    setCashReceived("");
+    setManualAmount("");
+    setPayment("cash");
+
+    setState((prev) => ({
+      ...prev,
+      startAt: Date.now(),
+      endAt: null,
+      eventDate: prev.eventDate || new Date().toISOString().slice(0, 10),
+    }));
   }
 
   // ===== UI計算 =====
@@ -688,91 +710,55 @@ const [allTags] = useState<string[]>(loadTags);
             </button>
 
             {state.startAt && !state.endAt ? (
-  <div
-    style={{
-      padding: "8px 12px",
-      borderRadius: 10,
-      fontSize: 13,
-      fontWeight: 700,
-      color: "#ff80c0",
-      border: "1px solid rgba(255,100,180,0.5)",
-      background: "rgba(255,80,160,0.15)",
-    }}
-  >
-    🔴 記録中
-  </div>
-) : (
-  <button
-    type="button"
-    onClick={() => {
-      setCart([]);
-      setOverrideWalletId(null);
-      setCashReceived("");
-      setManualAmount("");
-      setPayment("cash");
-
-      setState((prev) => ({
-        ...prev,
-        startAt: Date.now(),
-        endAt: null,
-        eventDate: prev.eventDate || new Date().toISOString().slice(0, 10),
-      }));
-
-      try {
-        localStorage.removeItem("mendako_endAt");
-      } catch {}
-    }}
-    style={{
-      padding: "8px 12px",
-      borderRadius: 10,
-      fontSize: 13,
-      fontWeight: 700,
-      background: "rgba(220,100,220,0.35)",
-      border: "1px solid rgba(220,120,220,0.5)",
-      color: "white",
-      cursor: "pointer",
-      fontFamily: "inherit",
-    }}
-  >
-    はじめる
-  </button>
-)}
+              <div
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#ff80c0",
+                  border: "1px solid rgba(255,100,180,0.5)",
+                  background: "rgba(255,80,160,0.15)",
+                }}
+              >
+                🔴 記録中
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleOpen}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  background: "rgba(220,100,220,0.35)",
+                  border: "1px solid rgba(220,120,220,0.5)",
+                  color: "white",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                はじめる
+              </button>
+            )}
 
             <button
-  type="button"
-  onClick={() => {
-    // 先にスナップショット作成→モーダル表示
-    setSettleSnapshot(totals);
-    setShowSettle(true);
-
-    // イベントをアーカイブ（履歴に残す）＋ 現イベントをリセット
-    setState((prev) => archiveCurrentEvent(prev));
-
-    // レジ側の入力リセット（履歴は消さない）
-    setCart([]);
-    setOverrideWalletId(null);
-    setCashReceived("");
-    setManualAmount("");
-    setPayment("cash");
-
-    // ★ setState直後は保存が追いつかないことがあるので、次tickでpush
-    setTimeout(() => {
-      pushSync().catch(() => {});
-    }, 0);
-  }}
-  style={{
-    padding: "8px 12px",
-    borderRadius: 10,
-    fontSize: 13,
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(220,160,220,0.3)",
-    color: "white",
-    cursor: "pointer",
-    fontFamily: "inherit",
-  }}
->
-  しめる
-</button>
+              type="button"
+              onClick={handleClose}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 10,
+                fontSize: 13,
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(220,160,220,0.3)",
+                color: "white",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              しめる
+            </button>
           </div>
         </div>
 
@@ -806,7 +792,6 @@ const [allTags] = useState<string[]>(loadTags);
                 const cashSales = sales
                   .filter((s) => s.walletId === w.id && s.payment === "cash")
                   .reduce((a, s) => a + (s.amount ?? 0), 0);
-
                 const float = (state.cashFloatByWallet ?? {})[w.id] ?? 0;
                 const theoretical = float + cashSales;
 
@@ -916,7 +901,6 @@ const [allTags] = useState<string[]>(loadTags);
                         🛍️
                       </div>
                     )}
-
                     <div
                       style={{
                         fontSize: 10,
@@ -1033,7 +1017,6 @@ const [allTags] = useState<string[]>(loadTags);
                         {yen(c.product.price * c.qty)}円
                       </div>
                     </div>
-
                     <button
                       onClick={() => removeFromCart(c.product.id)}
                       style={{

@@ -42,7 +42,7 @@ export function useLocalStore() {
     if (!uid) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
-    // 送信中なら「あとで再送」だけ立てる
+    // 送信中なら「あとで再送」フラグだけ立てる
     if (syncingRef.current) {
       pendingRef.current = true;
       return;
@@ -52,54 +52,27 @@ export function useLocalStore() {
     pendingRef.current = false;
 
     try {
-      // いったん “今の実装” を壊さないために uid だけ渡す
-      // （pushToSupabase 側が IndexedDB から読む設計でもOK）
-      const autoSync = useCallback(async () => {
-  const uid = userIdRef.current;
-  if (!uid) return;
-  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+      // 先にIndexedDBへ確定保存してからSupabaseへ送る
+      await Promise.all([
+        idbSaveState(state),
+        idbSaveWallets(wallets),
+        idbSaveProducts(products),
+      ]).catch(() => {});
 
-  if (syncingRef.current) {
-    pendingRef.current = true;
-    return;
-  }
-
-  syncingRef.current = true;
-  pendingRef.current = false;
-
-  try {
-    // ★先にIndexedDBへ確定保存（pushToSupabaseがIDB読む前提だから）
-    await Promise.all([
-      idbSaveState(state),
-      idbSaveWallets(wallets),
-      idbSaveProducts(products),
-    ]).catch(() => {});
-
-    await pushToSupabase(uid);
-  } catch {
-    pendingRef.current = true;
-  } finally {
-    syncingRef.current = false;
-
-    if (pendingRef.current) {
-      pendingRef.current = false;
-      await autoSync();
-    }
-  }
-}, [state, wallets, products]);
+      await pushToSupabase(uid);
     } catch {
-      // 一時的に失敗したら次回また送る
+      // 失敗したら次回また送る
       pendingRef.current = true;
     } finally {
       syncingRef.current = false;
 
-      // 送信中に変更が入ってたら、続けてもう1回送る
+      // 再帰はせず、1.5秒後に再試行（stack overflowを防ぐ）
       if (pendingRef.current) {
         pendingRef.current = false;
-        await autoSync();
+        setTimeout(() => autoSync(), 1500);
       }
     }
-  }, []);
+  }, [state, wallets, products]);
 
   const scheduleAutoSync = useCallback(() => {
     const uid = userIdRef.current;
@@ -152,13 +125,15 @@ export function useLocalStore() {
       userIdRef.current = session?.user?.id ?? null;
 
       // ログインした瞬間にクラウドから引っ張る
-if (userIdRef.current) {
-  pullFromSupabase(userIdRef.current).then(() => {
-    idbLoadState().then(s => s && setState_({ ...DEFAULT_STATE, ...s }));
-    idbLoadWallets().then(w => w && setWallets_(w));
-    idbLoadProducts().then(p => p && setProducts_(p));
-  }).catch(() => {});
-}
+      if (userIdRef.current) {
+        pullFromSupabase(userIdRef.current)
+          .then(() => {
+            idbLoadState().then((s) => s && setState_({ ...DEFAULT_STATE, ...s }));
+            idbLoadWallets().then((w) => w && setWallets_(w));
+            idbLoadProducts().then((p) => p && setProducts_(p));
+          })
+          .catch(() => {});
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -196,11 +171,10 @@ if (userIdRef.current) {
     return () => window.removeEventListener("online", onOnline);
   }, [autoSync]);
 
-  // ===== タブ閉じる/非表示で “最後の保険” 同期 =====
+  // ===== タブ閉じる/非表示で "最後の保険" 同期 =====
   useEffect(() => {
     const flush = () => {
       if (userIdRef.current) {
-        // ここは await できないので best-effort
         autoSync();
       }
     };
@@ -218,54 +192,52 @@ if (userIdRef.current) {
     };
   }, [autoSync]);
 
-  // ===== Register.tsx と同じ setState の使い方 =====
-const setState = useCallback(
-  (updater: EventState | ((prev: EventState) => EventState)) => {
-    setState_((prev) => {
-      const next =
-        typeof updater === "function"
-          ? (updater as (p: EventState) => EventState)(prev)
-          : updater;
-
-          useEffect(() => {
-  if (!ready) return;
-  idbSaveState(state).catch(() => {});
-}, [ready, state]);
-
-      return next;
-    });
-  },
-  []
-);
+  // ===== setState =====
+  const setState = useCallback(
+    (updater: EventState | ((prev: EventState) => EventState)) => {
+      setState_((prev) => {
+        const next =
+          typeof updater === "function"
+            ? (updater as (p: EventState) => EventState)(prev)
+            : updater;
+        return next;
+      });
+    },
+    []
+  );
 
   const setWallets = useCallback(
     (updater: Wallet[] | ((prev: Wallet[]) => Wallet[])) => {
-      setWallets_((prev) => (typeof updater === "function" ? updater(prev) : updater));
+      setWallets_((prev) =>
+        typeof updater === "function" ? updater(prev) : updater
+      );
     },
     []
   );
 
   const setProducts = useCallback(
     (updater: Product[] | ((prev: Product[]) => Product[])) => {
-      setProducts_((prev) => (typeof updater === "function" ? updater(prev) : updater));
+      setProducts_((prev) =>
+        typeof updater === "function" ? updater(prev) : updater
+      );
     },
     []
   );
 
-  // 「しめる」時の手動push（ログイン中だけ）
+  // ===== 「しめる」時の手動push（ログイン中だけ）=====
   const pushSync = useCallback(async () => {
-  const uid = userIdRef.current;
-  if (!uid) return;
+    const uid = userIdRef.current;
+    if (!uid) return;
 
-  // ★先にIDBへ確定保存
-  await Promise.all([
-    idbSaveState(state),
-    idbSaveWallets(wallets),
-    idbSaveProducts(products),
-  ]).catch(() => {});
+    // 先にIDBへ確定保存
+    await Promise.all([
+      idbSaveState(state),
+      idbSaveWallets(wallets),
+      idbSaveProducts(products),
+    ]).catch(() => {});
 
-  await pushToSupabase(uid);
-}, [state, wallets, products]);
+    await pushToSupabase(uid);
+  }, [state, wallets, products]);
 
   return {
     ready,
