@@ -10,7 +10,7 @@ import {
   idbLoadProducts,
   idbSaveProducts,
 } from "@/lib/db";
-import { pushToSupabase } from "@/lib/syncEngine";
+import { pushToSupabase, pullFromSupabase } from "@/lib/syncEngine";
 import { supabase } from "@/lib/supabaseClient";
 
 const DEFAULT_STATE: EventState = {
@@ -119,10 +119,14 @@ export function useLocalStore() {
     } = supabase.auth.onAuthStateChange((_, session) => {
       userIdRef.current = session?.user?.id ?? null;
 
-      // ログインした瞬間に一回同期（保険）
-      if (userIdRef.current) {
-        scheduleAutoSync();
-      }
+      // ログインした瞬間にクラウドから引っ張る
+if (userIdRef.current) {
+  pullFromSupabase(userIdRef.current).then(() => {
+    idbLoadState().then(s => s && setState_({ ...DEFAULT_STATE, ...s }));
+    idbLoadWallets().then(w => w && setWallets_(w));
+    idbLoadProducts().then(p => p && setProducts_(p));
+  }).catch(() => {});
+}
     });
 
     return () => subscription.unsubscribe();
