@@ -5,6 +5,21 @@ export type Wallet = {
   name: string;
 };
 
+
+
+// 既存のSaleの下に追加
+export type CartDiscount = {
+  type: "amount" | "percent";
+  value: number;
+  reason?: string;
+};
+
+export type LineDiscount = {
+  type: "amount" | "percent";
+  value: number;
+};
+
+// Saleに追加フィールド（optional なので既存データ壊れない）
 export type Sale = {
   id: string;
   at: number;
@@ -13,6 +28,11 @@ export type Sale = {
   walletId: string;
   cashReceived?: number;
   productId?: string;
+  // ↓ 追加
+  sessionId?: string;        // 同じ会計をグループ化するID
+  originalAmount?: number;   // 値引き前の金額
+  lineDiscount?: LineDiscount;
+  cartDiscount?: CartDiscount; // 会計値引きはセッションの代表に付ける
 };
 
 export type Gift = {

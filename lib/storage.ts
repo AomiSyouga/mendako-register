@@ -28,9 +28,12 @@ export const defaultState: EventState = {
 export async function loadState(): Promise<EventState> {
   const data = await idbLoadState();
   if (!data) return defaultState;
+
   return {
     ...defaultState,
     ...data,
+    sales: data.sales ?? [],
+    gifts: data.gifts ?? [],
     cashFloatByWallet: data.cashFloatByWallet ?? {},
     archivedEvents: data.archivedEvents ?? [],
   };

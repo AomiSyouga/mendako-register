@@ -51,9 +51,22 @@ export function TabHistory({ wallets, products }: Props) {
     const rows: string[][] = [];
 
     rows.push(["【売上履歴】"]);
-    rows.push(["日時", "商品名", "ウォレット", "支払い", "金額"]);
+    rows.push(["日時", "商品名", "ウォレット", "支払い", "金額", "値引き", "値引き理由"]);
     for (const s of [...ev.sales].reverse()) {
       const wName = wallets.find(w => w.id === s.walletId)?.name ?? s.walletId;
+      // 値引きレコードの場合
+      if (s.amount < 0) {
+        rows.push([
+          new Date(s.at).toLocaleString(),
+          `値引き（${s.cartDiscount?.reason ?? ""}）`,
+          wName,
+          s.payment === "cash" ? "現金" : "キャッシュレス",
+          String(s.amount),
+          "",
+          "",
+        ]);
+        continue;
+      }
       const pName = s.productId ? products.find(p => p.id === s.productId)?.name ?? "" : "";
       rows.push([
         new Date(s.at).toLocaleString(),
@@ -61,6 +74,8 @@ export function TabHistory({ wallets, products }: Props) {
         wName,
         s.payment === "cash" ? "現金" : "キャッシュレス",
         String(s.amount),
+        s.lineDiscount ? String(s.lineDiscount.value) : "",
+        "",
       ]);
     }
 
@@ -81,7 +96,7 @@ export function TabHistory({ wallets, products }: Props) {
     rows.push(["商品名", "販売数", "売上合計", "ウォレット"]);
     const productMap: Record<string, { name: string; walletName: string; qty: number; total: number }> = {};
     for (const s of ev.sales) {
-      if (!s.productId) continue;
+      if (!s.productId || s.amount < 0) continue;
       const p = products.find(p => p.id === s.productId);
       if (!p) continue;
       if (!productMap[s.productId]) {

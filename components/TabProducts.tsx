@@ -254,7 +254,7 @@ export function TabProducts({ products, setProducts, wallets }: Props) {
             </div>
           ) : (
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {products.map(p => (
+              {[...products].reverse().map(p => (
                 <li key={p.id} style={{
                   display: "flex", alignItems: "center", gap: 12, marginBottom: 12,
                   background: "rgba(255,255,255,0.04)",

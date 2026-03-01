@@ -29,7 +29,7 @@ export default function Home() {
 
   const tabs = useMemo(
     () => [
-      { id: "register" as const, label: "レジ", icon: "🐙" },
+     { id: "register" as const, label: "レジ", icon: <img src="/mendako-register.png" alt="" style={{ width: 22, height: 22, objectFit: "contain" }} /> },
       { id: "products" as const, label: "商品", icon: "🧾" },
       { id: "history" as const, label: "履歴", icon: "🌊" },
       { id: "settings" as const, label: "設定", icon: "⚙️" },
@@ -58,7 +58,10 @@ export default function Home() {
 
       <div className="app-wrapper">
         <header className="app-header glass">
-          <div className="app-title">めんだこれじ v0.1 🐙🌊</div>
+          <div className="app-title">
+  <img src="/mendako-register.png" alt="" style={{ width: 28, height: 28, objectFit: "contain", verticalAlign: "middle", marginRight: 6 }} />
+  めんだこれじ v0.1 🌊
+</div>
         </header>
 
         <nav className="tab-nav glass">

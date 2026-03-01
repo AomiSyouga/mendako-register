@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, type ChangeEvent, type CSSProperties } from "react";
 import { useLocalStore } from "@/lib/useLocalStore";
-import type { PaymentMethod, Sale, Wallet, Product, ProductTag, Gift } from "@/lib/types";
+import { type PaymentMethod, type Sale, type Wallet, type Product, type ProductTag, type Gift, type LineDiscount, type CartDiscount } from "@/lib/types";
 import { archiveCurrentEvent } from "@/lib/storage";
 import { idbSaveState } from "@/lib/db";
 
@@ -35,7 +35,9 @@ export function Register({ wallets, products }: Props) {
   const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [walletId, setWalletId] = useState<string>(wallets[0]?.id ?? "");
   const [cashReceived, setCashReceived] = useState<string>("");
-  const [cart, setCart] = useState<{ product: Product; qty: number }[]>([]);
+  const [cart, setCart] = useState<{ product: Product; qty: number; lineDiscount?: LineDiscount }[]>([]);
+  const [cartDiscount, setCartDiscount] = useState<CartDiscount | null>(null);
+  const [showDiscountSheet, setShowDiscountSheet] = useState(false);
   const [filterTag, setFilterTag] = useState<ProductTag | "all">("all");
   const [gridSize, setGridSize] = useState<"small" | "medium" | "large">("small");
   const [manualAmount, setManualAmount] = useState<string>("");
@@ -47,6 +49,7 @@ export function Register({ wallets, products }: Props) {
     cashTotal: number;
     cashlessTotal: number;
     byWallet: Record<string, { total: number; cash: number }>;
+    cashFloatByWallet: Record<string, number>;
   }>(null);
 
   const [actualCash, setActualCash] = useState<Record<string, string>>({});
@@ -59,26 +62,46 @@ export function Register({ wallets, products }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallets?.length]);
 
-  // ===== 計算系 =====
-  const cartTotal = useMemo(() => cart.reduce((a, c) => a + c.product.price * c.qty, 0), [cart]);
-  const manual = toNumberSafe(manualAmount);
-  const finalAmount = cart.length > 0 ? cartTotal : manual;
+ // ===== 計算系 =====
+const cartTotal = useMemo(() => cart.reduce((a, c) => a + c.product.price * c.qty, 0), [cart]);
+const manual = toNumberSafe(manualAmount);
 
-  const computedChange = useMemo(() => {
-    if (payment !== "cash") return null;
-    const received = toNumberSafe(cashReceived);
-    if (!received) return null;
-    return Math.round(received - finalAmount);
-  }, [payment, cashReceived, finalAmount]);
+// 行値引き合計
+const lineDiscountTotal = useMemo(() => cart.reduce((s, c) => {
+  if (!c.lineDiscount) return s;
+  const base = c.product.price * c.qty;
+  return s + (c.lineDiscount.type === "amount"
+    ? c.lineDiscount.value
+    : Math.round(base * c.lineDiscount.value / 100));
+}, 0), [cart]);
 
-  const cartByWallet = useMemo(() => {
-    const byWallet: Record<string, number> = {};
-    for (const c of cart) {
-      const wid = c.product.walletId;
-      byWallet[wid] = (byWallet[wid] ?? 0) + c.product.price * c.qty;
-    }
-    return byWallet;
-  }, [cart]);
+const afterLineDiscount = cartTotal - lineDiscountTotal;
+
+// 会計値引き額
+const cartDiscountAmount = useMemo(() => {
+  if (!cartDiscount) return 0;
+  return cartDiscount.type === "amount"
+    ? cartDiscount.value
+    : Math.round(afterLineDiscount * cartDiscount.value / 100);
+}, [cartDiscount, afterLineDiscount]);
+
+const finalAmount = cart.length > 0 ? Math.max(0, afterLineDiscount - cartDiscountAmount) : manual;
+
+const computedChange = useMemo(() => {
+  if (payment !== "cash") return null;
+  const received = toNumberSafe(cashReceived);
+  if (!received) return null;
+  return Math.round(received - finalAmount);
+}, [payment, cashReceived, finalAmount]);
+
+const cartByWallet = useMemo(() => {
+  const byWallet: Record<string, number> = {};
+  for (const c of cart) {
+    const wid = c.product.walletId;
+    byWallet[wid] = (byWallet[wid] ?? 0) + c.product.price * c.qty;
+  }
+  return byWallet;
+}, [cart]);
 
   const autoWalletId = useMemo(() => {
     if (cart.length === 0) return walletId;
@@ -104,10 +127,17 @@ export function Register({ wallets, products }: Props) {
   const totals = useMemo(() => {
     const sales = state?.sales ?? [];
 
-    const total = sales.reduce((a, s) => a + (s?.amount ?? 0), 0);
-    const cashTotal = sales
+    // 値引きレコード（cartDiscountがある、かつamountがマイナス）を分離
+    const normalSales = sales.filter((s) => (s?.amount ?? 0) >= 0);
+    const discountSales = sales.filter((s) => (s?.amount ?? 0) < 0);
+
+    const discountTotal = discountSales.reduce((a, s) => a + (s?.amount ?? 0), 0);
+    const total = normalSales.reduce((a, s) => a + (s?.amount ?? 0), 0) + discountTotal;
+    const cashTotal = normalSales
       .filter((s) => s?.payment === "cash")
-      .reduce((a, s) => a + (s?.amount ?? 0), 0);
+      .reduce((a, s) => a + (s?.amount ?? 0), 0)
+      + discountSales.filter((s) => s?.payment === "cash")
+        .reduce((a, s) => a + (s?.amount ?? 0), 0);
     const cashlessTotal = total - cashTotal;
 
     const byWallet: Record<string, { total: number; cash: number }> = {};
@@ -145,38 +175,58 @@ export function Register({ wallets, products }: Props) {
   }
 
   function addSale() {
-    if (!finalAmount || finalAmount <= 0) return;
-    const received = toNumberSafe(cashReceived);
-    const baseCommon = payment === "cash" && received ? { cashReceived: received } : {};
+  if (!finalAmount || finalAmount <= 0) return;
+  const received = toNumberSafe(cashReceived);
+  const baseCommon = payment === "cash" && received ? { cashReceived: received } : {};
+  const sessionId = uid();
 
-    if (cart.length > 0) {
-      const newSales: Sale[] = cart.map((c) => ({
-        id: uid(),
-        at: Date.now(),
-        amount: c.product.price * c.qty,
-        payment,
-        walletId: c.product.walletId,
-        productId: c.product.id,
-        ...baseCommon,
-      }));
-      setState((s) => ({ ...s, sales: [...newSales, ...(s.sales ?? [])] }));
-      setCart([]);
-      setOverrideWalletId(null);
-    } else {
-      const sale: Sale = {
-        id: uid(),
-        at: Date.now(),
-        amount: Math.round(finalAmount),
-        payment,
-        walletId: activeWalletId,
-        ...baseCommon,
-      };
-      setState((s) => ({ ...s, sales: [sale, ...(s.sales ?? [])] }));
-      setManualAmount("");
-    }
+  if (cart.length > 0) {
+    // 各商品は元値のまま保存
+    const newSales: Sale[] = cart.map((c) => ({
+      id: uid(),
+      at: Date.now(),
+      amount: c.product.price * c.qty,
+      originalAmount: c.product.price * c.qty,
+      payment,
+      walletId: c.product.walletId,
+      productId: c.product.id,
+      sessionId,
+      lineDiscount: c.lineDiscount,
+      ...baseCommon,
+    }));
 
-    setCashReceived("");
+    // 値引きは別レコードとして追加
+    const discountSales: Sale[] = cartDiscount && cartDiscountAmount > 0 ? [{
+      id: uid(),
+      at: Date.now(),
+      amount: -cartDiscountAmount,
+      payment,
+      walletId: cart[0].product.walletId,
+      sessionId,
+      cartDiscount: cartDiscount,
+      ...baseCommon,
+    }] : [];
+
+    setState((s) => ({ ...s, sales: [...newSales, ...discountSales, ...(s.sales ?? [])] }));
+    setCart([]);
+    setCartDiscount(null);
+    setOverrideWalletId(null);
+  } else {
+    const sale: Sale = {
+      id: uid(),
+      at: Date.now(),
+      amount: Math.round(finalAmount),
+      payment,
+      walletId: activeWalletId,
+      sessionId,
+      ...baseCommon,
+    };
+    setState((s) => ({ ...s, sales: [sale, ...(s.sales ?? [])] }));
+    setManualAmount("");
   }
+
+  setCashReceived("");
+}
 
   function setWalletFloat(wid: string, v: string) {
     const n = toNumberSafe(v);
@@ -233,7 +283,7 @@ export function Register({ wallets, products }: Props) {
 // ===== しめる =====
 async function handleClose() {
   // 1. スナップショット
-  setSettleSnapshot(totals);
+  setSettleSnapshot({ ...totals, cashFloatByWallet: state.cashFloatByWallet });
   setShowSettle(true);
 
   // 2. リセット済みstateを計算
@@ -353,7 +403,7 @@ async function handleClose() {
 
             {wallets.map((w) => {
               const wt = settleSnapshot.byWallet[w.id] ?? { total: 0, cash: 0 };
-              const float = (state.cashFloatByWallet ?? {})[w.id] ?? 0;
+              const float = (settleSnapshot.cashFloatByWallet ?? state.cashFloatByWallet ?? {})[w.id] ?? 0;
               const theoretical = float + wt.cash;
               const actual = toNumberSafe(actualCash[w.id] ?? "");
               const diff = actual - theoretical;
@@ -427,6 +477,134 @@ async function handleClose() {
           </div>
         </div>
       )}
+
+{/* 値引きBottomSheet */}
+{showDiscountSheet && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 100,
+      background: "rgba(0,0,0,0.7)",
+      backdropFilter: "blur(4px)",
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center",
+    }}
+    onClick={() => setShowDiscountSheet(false)}
+  >
+    <div
+      style={{
+        background: "linear-gradient(135deg, #0d0820, #1a0f3a)",
+        border: "1px solid rgba(220,160,220,0.3)",
+        borderRadius: "24px 24px 0 0",
+        padding: "28px 24px",
+        width: "100%",
+        maxWidth: 480,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div style={{ fontSize: 18, fontWeight: 700, color: "#f0c0f0", marginBottom: 16 }}>
+        🏷 値引き
+      </div>
+
+      {/* ワンタップボタン */}
+<div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+  {[
+    { label: "応援 -100円", type: "amount" as const, value: 100, reason: "応援" },
+    { label: "常連 -200円", type: "amount" as const, value: 200, reason: "常連" },
+    { label: "端数まけ -500円", type: "amount" as const, value: 500, reason: "端数まけ" },
+  ].map((preset) => (
+    <button
+      key={preset.label}
+      onClick={() => {
+        setCartDiscount({ type: preset.type, value: preset.value, reason: preset.reason });
+        setShowDiscountSheet(false);
+      }}
+      style={{
+        padding: "10px 16px",
+        borderRadius: 10,
+        fontSize: 13,
+        fontWeight: 700,
+        background: "rgba(220,100,220,0.2)",
+        border: "1px solid rgba(220,120,220,0.4)",
+        color: "#f0c0f0",
+        cursor: "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      {preset.label}
+    </button>
+  ))}
+</div>
+
+      {/* 手入力 */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>金額を手入力（円）</label>
+        <input
+          style={{ ...inputStyle, fontSize: 16, padding: "10px 14px" }}
+          inputMode="numeric"
+          placeholder="例：300"
+          id="discountInput"
+        />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>理由（任意）</label>
+        <input
+          style={{ ...inputStyle, fontSize: 14, padding: "10px 14px" }}
+          placeholder="例：常連さん"
+          id="discountReason"
+        />
+      </div>
+
+      <button
+        onClick={() => {
+          const val = toNumberSafe((document.getElementById("discountInput") as HTMLInputElement)?.value ?? "");
+          const reason = (document.getElementById("discountReason") as HTMLInputElement)?.value ?? "";
+          if (val > 0) {
+            setCartDiscount({ type: "amount", value: val, reason: reason || undefined });
+          }
+          setShowDiscountSheet(false);
+        }}
+        style={{
+          width: "100%",
+          padding: "12px",
+          borderRadius: 10,
+          fontSize: 15,
+          fontWeight: 700,
+          background: "linear-gradient(135deg, rgba(180,60,180,0.6), rgba(100,60,180,0.6))",
+          border: "1px solid rgba(220,120,220,0.4)",
+          color: "white",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          marginBottom: 8,
+        }}
+      >
+        適用する
+      </button>
+
+      <button
+        onClick={() => {
+          setCartDiscount(null);
+          setShowDiscountSheet(false);
+        }}
+        style={{
+          width: "100%",
+          padding: "10px",
+          borderRadius: 10,
+          fontSize: 13,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,100,100,0.3)",
+          color: "#ff9090",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        値引きをクリア
+      </button>
+    </div>
+  </div>
+)}
 
       {/* 差し入れモーダル */}
       {showGift && (
@@ -1043,8 +1221,60 @@ async function handleClose() {
             )}
 
             <div style={{ fontSize: 24, fontWeight: 700, color: "#f8d8f8", textShadow: "0 0 15px rgba(220,100,220,0.4)" }}>
-              {yen(finalAmount)}円
-            </div>
+           {/* 値引きボタン */}
+{cart.length > 0 && (
+  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+    <button
+      onClick={() => setShowDiscountSheet(true)}
+      style={{
+        padding: "4px 12px",
+        borderRadius: 8,
+        fontSize: 12,
+        background: cartDiscount ? "rgba(220,100,220,0.4)" : "rgba(255,255,255,0.06)",
+        border: cartDiscount ? "1px solid rgba(220,120,220,0.8)" : "1px solid rgba(220,160,220,0.2)",
+        color: cartDiscount ? "#f0c0f0" : "rgba(200,160,200,0.7)",
+        cursor: "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      🏷 値引き{cartDiscount ? "あり" : ""}
+    </button>
+  </div>
+)}
+
+{/* 値引きありのとき小計を小さく表示、なければ非表示 */}
+{cartDiscount && (
+  <div style={{ fontSize: 15, color: "rgba(200,160,200,0.5)", textDecoration: "line-through", marginBottom: 2 }}>
+    {yen(afterLineDiscount)}円
+  </div>
+)}
+
+{/* 値引き額（値引きありのときだけ） */}
+{cartDiscount && (
+  <div style={{ fontSize: 13, color: "rgba(220,180,100,0.9)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+    値引き -{yen(cartDiscountAmount)}円
+    {cartDiscount.reason && `（${cartDiscount.reason}）`}
+    <button
+      onClick={() => setCartDiscount(null)}
+      style={{
+        fontSize: 11,
+        background: "none",
+        border: "none",
+        color: "rgba(255,120,120,0.8)",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        padding: 0,
+      }}
+    >
+      ✕
+    </button>
+  </div>
+)}
+
+{/* メイン金額（常に1つだけ） */}
+<div style={{ fontSize: 24, fontWeight: 700, color: "#f8d8f8", textShadow: "0 0 15px rgba(220,100,220,0.4)" }}>
+  {yen(finalAmount)}円
+</div>
 
             <div>
               <label style={labelStyle}>支払い</label>
@@ -1239,5 +1469,6 @@ async function handleClose() {
         })}
       </div>
     </div>
+  </div>
   );
 }
