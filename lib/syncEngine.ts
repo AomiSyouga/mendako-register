@@ -111,35 +111,14 @@ export async function pullFromSupabase(userId: string): Promise<void> {
   }
 
   if (walletsRes.data) {
-    const cloudWallets = walletsRes.data.data as Wallet[];
-    const localWallets = await idbLoadWallets();
-    if (localWallets === null) {
-      // 新デバイス: クラウドの値をそのまま使用
-      await idbSaveWallets(cloudWallets);
-    } else {
-      // 既存デバイス: ローカルにないIDのみ追加（削除はローカル優先）
-      const localIds = new Set(localWallets.map((w) => w.id));
-      const toAdd = cloudWallets.filter((w) => !localIds.has(w.id));
-      if (toAdd.length > 0) {
-        await idbSaveWallets([...localWallets, ...toAdd]);
-      }
-    }
+    // クラウドを正として上書き（削除・追加ともに同期）
+    // setWallets が変更時に即pushするので競合しない
+    await idbSaveWallets(walletsRes.data.data as Wallet[]);
   }
 
   if (productsRes.data) {
-    const cloudProducts = productsRes.data.data as Product[];
-    const localProducts = await idbLoadProducts();
-    if (localProducts === null) {
-      // 新デバイス: クラウドの値をそのまま使用
-      await idbSaveProducts(cloudProducts);
-    } else {
-      // 既存デバイス: ローカルにないIDのみ追加（削除はローカル優先）
-      const localIds = new Set(localProducts.map((p) => p.id));
-      const toAdd = cloudProducts.filter((p) => !localIds.has(p.id));
-      if (toAdd.length > 0) {
-        await idbSaveProducts([...localProducts, ...toAdd]);
-      }
-    }
+    // クラウドを正として上書き（削除・追加ともに同期）
+    await idbSaveProducts(productsRes.data.data as Product[]);
   }
 }
 
