@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Product, ProductTag, Wallet } from "@/lib/types";
-import { saveProducts } from "@/lib/storage";
 
 const TAGS_KEY = "mendako_v0_tags";
 const DEFAULT_TAGS = ["ポーチ", "かばん", "アート", "家具", "ボックス", "アクリルキーホルダー", "メガネケース", "カードケース", "財布"];
@@ -112,7 +111,6 @@ export function TabProducts({ products, setProducts, wallets }: Props) {
       };
       const updated = [...products, newProduct];
       setProducts(updated);
-      saveProducts(updated);
     } else {
       const updated = products.map(p =>
         p.id === editingId
@@ -120,7 +118,6 @@ export function TabProducts({ products, setProducts, wallets }: Props) {
           : p
       );
       setProducts(updated);
-      saveProducts(updated);
     }
     setEditingId(null);
   }
@@ -128,7 +125,6 @@ export function TabProducts({ products, setProducts, wallets }: Props) {
   function deleteProduct(id: string) {
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
-    saveProducts(updated);
   }
 
   const walletName = (id: string) => wallets.find(w => w.id === id)?.name ?? id;

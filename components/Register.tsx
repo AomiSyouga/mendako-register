@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, type ChangeEvent, type CSSProperties } from "react";
-import { useLocalStore } from "@/lib/useLocalStore";
-import { type PaymentMethod, type Sale, type Wallet, type Product, type ProductTag, type Gift, type LineDiscount, type CartDiscount } from "@/lib/types";
+import { type PaymentMethod, type Sale, type Wallet, type Product, type ProductTag, type Gift, type LineDiscount, type CartDiscount, type EventState } from "@/lib/types";
 import { archiveCurrentEvent } from "@/lib/storage";
 import { idbSaveState } from "@/lib/db";
 
@@ -17,7 +16,14 @@ function toNumberSafe(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-type Props = { wallets: Wallet[]; products: Product[] };
+type Props = {
+  wallets: Wallet[];
+  products: Product[];
+  state: EventState;
+  setState: (updater: EventState | ((prev: EventState) => EventState)) => void;
+  ready: boolean;
+  pushSync: () => Promise<void>;
+};
 
 const TAGS_KEY = "mendako_v0_tags";
 const DEFAULT_TAGS = ["ポーチ", "かばん", "アート", "家具", "ボックス", "アクリルキーホルダー", "メガネケース", "カードケース", "財布"];
@@ -29,8 +35,7 @@ function loadTags(): string[] {
   } catch { return DEFAULT_TAGS; }
 }
 
-export function Register({ wallets, products }: Props) {
-  const { state, setState, ready, pushSync } = useLocalStore();
+export function Register({ wallets, products, state, setState, ready, pushSync }: Props) {
   const [allTags] = useState<string[]>(loadTags);
   const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [walletId, setWalletId] = useState<string>(wallets[0]?.id ?? "");

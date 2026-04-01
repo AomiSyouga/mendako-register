@@ -1,31 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import { Register } from "@/components/Register";
 import { TabProducts } from "@/components/TabProducts";
 import { TabHistory } from "@/components/TabHistory";
 import { TabSettings } from "@/components/TabSettings";
 
-import { loadProducts, loadWallets, saveProducts, saveWallets } from "@/lib/storage";
-import type { Product, Wallet } from "@/lib/types";
+import { useLocalStore } from "@/lib/useLocalStore";
 
 type TabId = "register" | "products" | "history" | "settings";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>("register");
 
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-
-  useEffect(() => {
-  const init = async () => {
-    const [w, p] = await Promise.all([loadWallets(), loadProducts()]);
-    setWallets(w);
-    setProducts(p);
-  };
-  init();
-}, []);
+  const { state, setState, wallets, setWallets, products, setProducts, ready, pushSync } = useLocalStore();
 
   const tabs = useMemo(
     () => [
@@ -78,15 +67,21 @@ export default function Home() {
         </nav>
 
         <main className="app-main">
-          {activeTab === "register" && <Register wallets={wallets} products={products} />}
+          {activeTab === "register" && (
+            <Register
+              wallets={wallets}
+              products={products}
+              state={state}
+              setState={setState}
+              ready={ready}
+              pushSync={pushSync}
+            />
+          )}
 
           {activeTab === "products" && (
             <TabProducts
               products={products}
-              setProducts={(p) => {
-                setProducts(p);
-                saveProducts(p);
-              }}
+              setProducts={setProducts}
               wallets={wallets}
             />
           )}
@@ -96,10 +91,7 @@ export default function Home() {
           {activeTab === "settings" && (
             <TabSettings
               wallets={wallets}
-              setWallets={(w) => {
-                setWallets(w);
-                saveWallets(w);
-              }}
+              setWallets={setWallets}
             />
           )}
         </main>

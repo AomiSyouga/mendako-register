@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Wallet } from "@/lib/types";
-import { saveWallets } from "@/lib/storage";
 
 const DEFAULT_TAGS = [
   "ポーチ", "かばん", "アート", "家具", "ボックス",
@@ -39,25 +38,25 @@ export function TabSettings({ wallets, setWallets }: Props) {
   function saveEdit() {
     if (!editingId) return;
     const updated = wallets.map(w => w.id === editingId ? { ...w, name: editingName } : w);
-    setWallets(updated); saveWallets(updated); setEditingId(null);
+    setWallets(updated); setEditingId(null);
   }
   function addWallet() {
     const newWallet: Wallet = { id: "wallet_" + Date.now(), name: "新しいウォレット" };
     const updated = [...wallets, newWallet];
-    setWallets(updated); saveWallets(updated);
+    setWallets(updated);
     setEditingId(newWallet.id); setEditingName(newWallet.name);
   }
   function deleteWallet(id: string) {
     if (wallets.length <= 1) return;
     const updated = wallets.filter(w => w.id !== id);
-    setWallets(updated); saveWallets(updated);
+    setWallets(updated);
   }
   function moveWallet(idx: number, dir: -1 | 1) {
     const updated = [...wallets];
     const target = idx + dir;
     if (target < 0 || target >= updated.length) return;
     [updated[idx], updated[target]] = [updated[target], updated[idx]];
-    setWallets(updated); saveWallets(updated);
+    setWallets(updated);
   }
 
   function addTag() {
