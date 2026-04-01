@@ -35,14 +35,14 @@ function mergeArchived(a: ArchivedEvent[], b: ArchivedEvent[]): ArchivedEvent[] 
    archivedEventsはクラウドとマージしてから保存（消失防止）
 ========================= */
 
-export async function pushToSupabase(userId: string): Promise<void> {
-  const [localState, wallets, products] = await Promise.all([
-    idbLoadState(),
+export async function pushToSupabase(userId: string, stateOverride?: EventState): Promise<void> {
+  const [idbState, wallets, products] = await Promise.all([
+    stateOverride ? Promise.resolve(stateOverride) : idbLoadState(),
     idbLoadWallets(),
     idbLoadProducts(),
   ]);
 
-  const state = localState ?? defaultState;
+  const state = stateOverride ?? idbState ?? defaultState;
 
   // クラウドのarchivedEventsを取得してマージ（他デバイスで追加分を消さない）
   const cloudRes = await supabase
@@ -58,8 +58,7 @@ export async function pushToSupabase(userId: string): Promise<void> {
     archivedEvents: mergeArchived(state.archivedEvents ?? [], cloudArchived),
   };
 
-  // IDBも最新にしておく
-  await idbSaveState(mergedState);
+  // IDBへの書き戻しは行わない（state useEffectが担う。競合を防ぐ）
 
   await Promise.all([
     upsertTable("event_state", userId, mergedState),
@@ -96,8 +95,8 @@ export async function pullFromSupabase(userId: string): Promise<void> {
       ...cloudState,
       eventName: localState.eventName || cloudState.eventName,
       eventDate: localState.eventDate || cloudState.eventDate,
-      startAt: localState.startAt ?? cloudState.startAt,
-      endAt: localState.endAt ?? cloudState.endAt,
+      startAt: localState.startAt,
+      endAt: localState.endAt,
       cashFloat: localState.cashFloat || cloudState.cashFloat,
       cashFloatByWallet:
         Object.keys(localState.cashFloatByWallet ?? {}).length > 0

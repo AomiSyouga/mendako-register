@@ -253,11 +253,11 @@ export function useLocalStore() {
   // ===== 「しめる」時の手動push（ログイン中だけ）=====
   // handleCloseがIDBに正しいstateを保存済みなので、ここではIDB再保存しない。
   // クロージャのstateは古い可能性があり、IDBを上書きするとデータロスになる。
-  const pushSync = useCallback(async () => {
+  const pushSync = useCallback(async (stateOverride?: EventState) => {
     const uid = userIdRef.current;
     if (!uid) return;
 
-    await pushToSupabase(uid);
+    await pushToSupabase(uid, stateOverride);
   }, []);
 
   return {

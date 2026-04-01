@@ -22,7 +22,7 @@ type Props = {
   state: EventState;
   setState: (updater: EventState | ((prev: EventState) => EventState)) => void;
   ready: boolean;
-  pushSync: () => Promise<void>;
+  pushSync: (stateOverride?: EventState) => Promise<void>;
 };
 
 const TAGS_KEY = "mendako_v0_tags";
@@ -307,8 +307,8 @@ async function handleClose() {
   setManualAmount("");
   setPayment("cash");
 
-  // 6. IDB保存済みなのでそのままpush
-  await pushSync().catch(() => {});
+  // 6. nextStateを直接渡してpush（IDBの読み戻しを防ぐ）
+  await pushSync(nextState).catch(() => {});
 }
 
   // ===== はじめる =====
