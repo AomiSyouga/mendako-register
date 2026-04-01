@@ -31,6 +31,9 @@ export function useLocalStore() {
   const [wallets, setWallets_] = useState<Wallet[]>([]);
   const [products, setProducts_] = useState<Product[]>([]);
   const userIdRef = useRef<string | null>(null);
+  // 最新値をrefで保持（state updater外でasync処理する際に使う）
+  const walletsRef = useRef<Wallet[]>([]);
+  const productsRef = useRef<Product[]>([]);
 
   // ===== 自動同期制御 =====
   const syncTimerRef = useRef<number | null>(null);
@@ -93,7 +96,9 @@ export function useLocalStore() {
         if (cancelled) return;
 
         setState_({ ...DEFAULT_STATE, ...(s ?? {}) });
+        walletsRef.current = w ?? [];
         setWallets_(w ?? []);
+        productsRef.current = p ?? [];
         setProducts_(p ?? []);
       } catch {
         // 失敗してもアプリは動かす
@@ -122,8 +127,8 @@ export function useLocalStore() {
         pullFromSupabase(uid)
           .then(() => {
             idbLoadState().then((s2) => s2 && setState_({ ...DEFAULT_STATE, ...s2 }));
-            idbLoadWallets().then((w) => w && setWallets_(w));
-            idbLoadProducts().then((p) => p && setProducts_(p));
+            idbLoadWallets().then((w) => { if (w) { walletsRef.current = w; setWallets_(w); } });
+            idbLoadProducts().then((p) => { if (p) { productsRef.current = p; setProducts_(p); } });
           })
           .catch(() => {});
 
@@ -142,8 +147,8 @@ export function useLocalStore() {
         pullFromSupabase(uid)
           .then(() => {
             idbLoadState().then((s) => s && setState_({ ...DEFAULT_STATE, ...s }));
-            idbLoadWallets().then((w) => w && setWallets_(w));
-            idbLoadProducts().then((p) => p && setProducts_(p));
+            idbLoadWallets().then((w) => { if (w) { walletsRef.current = w; setWallets_(w); } });
+            idbLoadProducts().then((p) => { if (p) { productsRef.current = p; setProducts_(p); } });
           })
           .catch(() => {});
         wasLoggedInRef.current = true;
@@ -226,30 +231,28 @@ export function useLocalStore() {
 
   const setWallets = useCallback(
     (updater: Wallet[] | ((prev: Wallet[]) => Wallet[])) => {
-      setWallets_((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        // IDBに即保存してからSupabaseへ即push（変更がリロードで消えないように）
-        const uid = userIdRef.current;
-        idbSaveWallets(next)
-          .then(() => { if (uid) return pushWalletsToSupabase(uid); })
-          .catch(() => {});
-        return next;
-      });
+      // refから現在値を取得してnextを計算（state updater外でasync処理するため）
+      const next = typeof updater === "function" ? updater(walletsRef.current) : updater;
+      walletsRef.current = next;
+      setWallets_(next);
+      // state updaterの外でIDB保存+push（updater内のasyncはReact的にNG）
+      const uid = userIdRef.current;
+      idbSaveWallets(next)
+        .then(() => { if (uid) return pushWalletsToSupabase(uid); })
+        .catch(() => {});
     },
     []
   );
 
   const setProducts = useCallback(
     (updater: Product[] | ((prev: Product[]) => Product[])) => {
-      setProducts_((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        // IDBに即保存してからSupabaseへ即push（削除がリロードで復活しないように）
-        const uid = userIdRef.current;
-        idbSaveProducts(next)
-          .then(() => { if (uid) return pushProductsToSupabase(uid); })
-          .catch(() => {});
-        return next;
-      });
+      const next = typeof updater === "function" ? updater(productsRef.current) : updater;
+      productsRef.current = next;
+      setProducts_(next);
+      const uid = userIdRef.current;
+      idbSaveProducts(next)
+        .then(() => { if (uid) return pushProductsToSupabase(uid); })
+        .catch(() => {});
     },
     []
   );
