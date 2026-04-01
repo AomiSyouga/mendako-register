@@ -163,20 +163,13 @@ export function useLocalStore() {
   }, [scheduleAutoSync]);
 
   // ===== ローカル保存（IndexedDB）=====
+  // state（売上など頻繁に変わるもの）はuseEffectで保存
   useEffect(() => {
     if (!ready) return;
     idbSaveState(state).catch(() => {});
   }, [ready, state]);
-
-  useEffect(() => {
-    if (!ready) return;
-    idbSaveWallets(wallets).catch(() => {});
-  }, [ready, wallets]);
-
-  useEffect(() => {
-    if (!ready) return;
-    idbSaveProducts(products).catch(() => {});
-  }, [ready, products]);
+  // wallets/productsはsetWallets/setProductsが直接IDB保存するのでuseEffectは不要
+  // （useEffectで空配列を書くとnullチェックが壊れ、新デバイスでpullがスキップされる）
 
   // ===== 変更が起きたら自動同期を予約（ログイン中のみ）=====
   useEffect(() => {
