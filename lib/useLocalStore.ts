@@ -10,7 +10,7 @@ import {
   idbLoadProducts,
   idbSaveProducts,
 } from "@/lib/db";
-import { pushToSupabase, pullFromSupabase } from "@/lib/syncEngine";
+import { pushToSupabase, pullFromSupabase, pushProductsToSupabase } from "@/lib/syncEngine";
 import { supabase } from "@/lib/supabaseClient";
 
 const DEFAULT_STATE: EventState = {
@@ -52,13 +52,7 @@ export function useLocalStore() {
     pendingRef.current = false;
 
     try {
-      // 先にIndexedDBへ確定保存してからSupabaseへ送る
-      await Promise.all([
-        idbSaveState(state),
-        idbSaveWallets(wallets),
-        idbSaveProducts(products),
-      ]).catch(() => {});
-
+      // IDB保存はuseEffectが担うためここでは省略（クロージャの古いstateでIDBを上書きしない）
       await pushToSupabase(uid);
     } catch {
       // 失敗したら次回また送る
@@ -124,23 +118,14 @@ export function useLocalStore() {
       userIdRef.current = uid;
 
       if (uid) {
-        // 初回マウント時：IDBにデータがない場合のみpull
-        idbLoadState().then((s) => {
-          const hasLocalData = s && (s.startAt || (s.sales ?? []).length > 0 || (s.archivedEvents ?? []).length > 0);
-          if (!hasLocalData) {
-            // ローカルにデータがないときだけクラウドから取得
-            pullFromSupabase(uid)
-              .then(() => {
-                idbLoadState().then((s2) => s2 && setState_({ ...DEFAULT_STATE, ...s2 }));
-                idbLoadWallets().then((w) => w && setWallets_(w));
-                idbLoadProducts().then((p) => p && setProducts_(p));
-              })
-              .catch(() => {});
-          } else {
-            // ローカルにデータがある場合はproductsとwalletsだけpull（商品・財布は上書きOK）
-            pullFromSupabase(uid).catch(() => {});
-          }
-        }).catch(() => {});
+        // マウント時は常にpull（archivedEventsはマージ、現在イベントはローカル優先）
+        pullFromSupabase(uid)
+          .then(() => {
+            idbLoadState().then((s2) => s2 && setState_({ ...DEFAULT_STATE, ...s2 }));
+            idbLoadWallets().then((w) => w && setWallets_(w));
+            idbLoadProducts().then((p) => p && setProducts_(p));
+          })
+          .catch(() => {});
 
         wasLoggedInRef.current = true;
       }
@@ -250,27 +235,28 @@ export function useLocalStore() {
 
   const setProducts = useCallback(
     (updater: Product[] | ((prev: Product[]) => Product[])) => {
-      setProducts_((prev) =>
-        typeof updater === "function" ? updater(prev) : updater
-      );
+      setProducts_((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        // IDBに即保存してからSupabaseへ即push（削除がリロードで復活しないように）
+        const uid = userIdRef.current;
+        idbSaveProducts(next)
+          .then(() => { if (uid) return pushProductsToSupabase(uid); })
+          .catch(() => {});
+        return next;
+      });
     },
     []
   );
 
   // ===== 「しめる」時の手動push（ログイン中だけ）=====
+  // handleCloseがIDBに正しいstateを保存済みなので、ここではIDB再保存しない。
+  // クロージャのstateは古い可能性があり、IDBを上書きするとデータロスになる。
   const pushSync = useCallback(async () => {
     const uid = userIdRef.current;
     if (!uid) return;
 
-    // 先にIDBへ確定保存
-    await Promise.all([
-      idbSaveState(state),
-      idbSaveWallets(wallets),
-      idbSaveProducts(products),
-    ]).catch(() => {});
-
     await pushToSupabase(uid);
-  }, [state, wallets, products]);
+  }, []);
 
   return {
     ready,

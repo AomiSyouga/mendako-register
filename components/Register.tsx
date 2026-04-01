@@ -1065,10 +1065,26 @@ async function handleClose() {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: 20,
+                          padding: 6,
+                          overflow: "hidden",
                         }}
                       >
-                        🛍️
+                        <span
+                          style={{
+                            fontSize: gridSize === "small" ? 13 : gridSize === "medium" ? 16 : 20,
+                            fontWeight: 800,
+                            textAlign: "center",
+                            lineHeight: 1.3,
+                            color: "rgba(240,200,240,0.9)",
+                            wordBreak: "break-all",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 4,
+                            WebkitBoxOrient: "vertical" as const,
+                            overflow: "hidden",
+                          }}
+                        >
+                          {p.name}
+                        </span>
                       </div>
                     )}
                     <div
