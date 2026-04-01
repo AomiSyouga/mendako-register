@@ -69,7 +69,7 @@ export function useLocalStore() {
         setTimeout(() => autoSync(), 1500);
       }
     }
-  }, [state, wallets, products]);
+  }, []);
 
   const scheduleAutoSync = useCallback(() => {
     const uid = userIdRef.current;
