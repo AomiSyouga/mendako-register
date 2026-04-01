@@ -55,8 +55,8 @@ export function useLocalStore() {
     pendingRef.current = false;
 
     try {
-      // IDB保存はuseEffectが担うためここでは省略（クロージャの古いstateでIDBを上書きしない）
-      await pushToSupabase(uid);
+      // walletsRef/productsRefを直接渡す（IDB読み込みに依存しない）
+      await pushToSupabase(uid, undefined, walletsRef.current, productsRef.current);
     } catch {
       // 失敗したら次回また送る
       pendingRef.current = true;
@@ -224,15 +224,13 @@ export function useLocalStore() {
 
   const setWallets = useCallback(
     (updater: Wallet[] | ((prev: Wallet[]) => Wallet[])) => {
-      // refから現在値を取得してnextを計算（state updater外でasync処理するため）
       const next = typeof updater === "function" ? updater(walletsRef.current) : updater;
       walletsRef.current = next;
       setWallets_(next);
-      // state updaterの外でIDB保存+push（updater内のasyncはReact的にNG）
+      // IDB保存とpushを切り離す（IDB失敗でもpushは必ず実行）
+      idbSaveWallets(next).catch(() => {});
       const uid = userIdRef.current;
-      idbSaveWallets(next)
-        .then(() => { if (uid) return pushWalletsToSupabase(uid); })
-        .catch(() => {});
+      if (uid) pushWalletsToSupabase(uid, next).catch(() => {});
     },
     []
   );
@@ -242,10 +240,10 @@ export function useLocalStore() {
       const next = typeof updater === "function" ? updater(productsRef.current) : updater;
       productsRef.current = next;
       setProducts_(next);
+      // IDB保存とpushを切り離す（IDB失敗でもpushは必ず実行）
+      idbSaveProducts(next).catch(() => {});
       const uid = userIdRef.current;
-      idbSaveProducts(next)
-        .then(() => { if (uid) return pushProductsToSupabase(uid); })
-        .catch(() => {});
+      if (uid) pushProductsToSupabase(uid, next).catch(() => {});
     },
     []
   );
@@ -257,7 +255,7 @@ export function useLocalStore() {
     const uid = userIdRef.current;
     if (!uid) return;
 
-    await pushToSupabase(uid, stateOverride);
+    await pushToSupabase(uid, stateOverride, walletsRef.current, productsRef.current);
   }, []);
 
   return {

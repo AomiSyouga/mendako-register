@@ -35,14 +35,21 @@ function mergeArchived(a: ArchivedEvent[], b: ArchivedEvent[]): ArchivedEvent[] 
    archivedEventsはクラウドとマージしてから保存（消失防止）
 ========================= */
 
-export async function pushToSupabase(userId: string, stateOverride?: EventState): Promise<void> {
-  const [idbState, wallets, products] = await Promise.all([
-    stateOverride ? Promise.resolve(stateOverride) : idbLoadState(),
-    idbLoadWallets(),
-    idbLoadProducts(),
+export async function pushToSupabase(
+  userId: string,
+  stateOverride?: EventState,
+  walletsOverride?: Wallet[],
+  productsOverride?: Product[]
+): Promise<void> {
+  const [idbState, idbWallets, idbProducts] = await Promise.all([
+    stateOverride !== undefined ? Promise.resolve(stateOverride) : idbLoadState(),
+    walletsOverride !== undefined ? Promise.resolve(walletsOverride) : idbLoadWallets(),
+    productsOverride !== undefined ? Promise.resolve(productsOverride) : idbLoadProducts(),
   ]);
 
   const state = stateOverride ?? idbState ?? defaultState;
+  const wallets = walletsOverride ?? idbWallets ?? [];
+  const products = productsOverride ?? idbProducts ?? [];
 
   // クラウドのarchivedEventsを取得してマージ（他デバイスで追加分を消さない）
   const cloudRes = await supabase
@@ -127,12 +134,12 @@ export async function pullFromSupabase(userId: string): Promise<void> {
    追加・編集・削除から呼ぶ
 ========================= */
 
-export async function pushProductsToSupabase(userId: string): Promise<void> {
-  const products = await idbLoadProducts();
-  await upsertTable("products", userId, products ?? []);
+export async function pushProductsToSupabase(userId: string, products?: Product[]): Promise<void> {
+  const data = products !== undefined ? products : await idbLoadProducts();
+  await upsertTable("products", userId, data ?? []);
 }
 
-export async function pushWalletsToSupabase(userId: string): Promise<void> {
-  const wallets = await idbLoadWallets();
-  await upsertTable("wallets", userId, wallets ?? []);
+export async function pushWalletsToSupabase(userId: string, wallets?: Wallet[]): Promise<void> {
+  const data = wallets !== undefined ? wallets : await idbLoadWallets();
+  await upsertTable("wallets", userId, data ?? []);
 }
