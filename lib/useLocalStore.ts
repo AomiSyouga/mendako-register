@@ -10,7 +10,7 @@ import {
   idbLoadProducts,
   idbSaveProducts,
 } from "@/lib/db";
-import { pushToSupabase, pullFromSupabase, pushProductsToSupabase } from "@/lib/syncEngine";
+import { pushToSupabase, pullFromSupabase, pushProductsToSupabase, pushWalletsToSupabase } from "@/lib/syncEngine";
 import { supabase } from "@/lib/supabaseClient";
 
 const DEFAULT_STATE: EventState = {
@@ -226,9 +226,15 @@ export function useLocalStore() {
 
   const setWallets = useCallback(
     (updater: Wallet[] | ((prev: Wallet[]) => Wallet[])) => {
-      setWallets_((prev) =>
-        typeof updater === "function" ? updater(prev) : updater
-      );
+      setWallets_((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        // IDBに即保存してからSupabaseへ即push（変更がリロードで消えないように）
+        const uid = userIdRef.current;
+        idbSaveWallets(next)
+          .then(() => { if (uid) return pushWalletsToSupabase(uid); })
+          .catch(() => {});
+        return next;
+      });
     },
     []
   );

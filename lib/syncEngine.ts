@@ -112,8 +112,12 @@ export async function pullFromSupabase(userId: string): Promise<void> {
   }
 
   if (walletsRes.data) {
-    // walletsはクラウドを正として上書き
-    await idbSaveWallets(walletsRes.data.data as Wallet[]);
+    const localWallets = (await idbLoadWallets()) ?? [];
+    if (localWallets.length === 0) {
+      // ローカルにウォレットがない場合のみクラウドから取得（変更がpullで復活しないように）
+      await idbSaveWallets(walletsRes.data.data as Wallet[]);
+    }
+    // ローカルにウォレットがある場合はpush側で同期（一方向）
   }
 
   if (productsRes.data) {
@@ -127,11 +131,16 @@ export async function pullFromSupabase(userId: string): Promise<void> {
 }
 
 /* =========================
-   products のみ即時push
-   商品追加・編集・削除から呼ぶ
+   products / wallets のみ即時push
+   追加・編集・削除から呼ぶ
 ========================= */
 
 export async function pushProductsToSupabase(userId: string): Promise<void> {
   const products = await idbLoadProducts();
   await upsertTable("products", userId, products ?? []);
+}
+
+export async function pushWalletsToSupabase(userId: string): Promise<void> {
+  const wallets = await idbLoadWallets();
+  await upsertTable("wallets", userId, wallets ?? []);
 }
