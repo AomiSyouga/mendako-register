@@ -112,21 +112,21 @@ export async function pullFromSupabase(userId: string): Promise<void> {
   }
 
   if (walletsRes.data) {
-    const localWallets = (await idbLoadWallets()) ?? [];
-    if (localWallets.length === 0) {
-      // ローカルにウォレットがない場合のみクラウドから取得（変更がpullで復活しないように）
+    const localWallets = await idbLoadWallets();
+    if (localWallets === null) {
+      // IDB未初期化（新デバイス）の場合のみクラウドから取得
+      // [] は「全削除済み」なので上書きしない
       await idbSaveWallets(walletsRes.data.data as Wallet[]);
     }
-    // ローカルにウォレットがある場合はpush側で同期（一方向）
   }
 
   if (productsRes.data) {
-    const localProducts = (await idbLoadProducts()) ?? [];
-    if (localProducts.length === 0) {
-      // ローカルに商品がない場合のみクラウドから取得（削除がpullで復活しないように）
+    const localProducts = await idbLoadProducts();
+    if (localProducts === null) {
+      // IDB未初期化（新デバイス）の場合のみクラウドから取得
+      // [] は「全削除済み」なので上書きしない
       await idbSaveProducts(productsRes.data.data as Product[]);
     }
-    // ローカルに商品がある場合はpush側で同期（一方向）
   }
 }
 
